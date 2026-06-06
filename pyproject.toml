@@ -1,0 +1,19 @@
+project-includes = [
+    "**/*.py*",
+]
+
+# python-platform = "linux"
+
+[errors]
+preset = "default"
+# TOOD: 効かない???
+
+[dependency-groups]
+dev = [
+    "fake-bpy-module>=20260501",
+]
+lint = [
+    "pyrefly>=1.0",
+]
+
+

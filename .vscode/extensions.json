@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.black-formatter",
+    "ms-python.debugpy",
+    "ms-python.black-formatter",
+    "meta.pyrefly",
+    "JacquesLucke.blender-development"
+  ],
+  "unwantedRecommendations": [
+    "ms-python.vscode-pylance"
+  ]
+}
