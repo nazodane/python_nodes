@@ -372,6 +372,26 @@ def install_pytorch():
         print(f"Error installing PyTorch: {e.stderr}")
         return False
 
+from pathlib import Path
+import os
+def install_app_template():
+    # https://docs.blender.org/manual/en/latest/advanced/app_templates.html
+    # 標準では存在しないものの、作れば即時認識される模様
+    tp = Path(bpy.utils.script_path_user()) / "startup" / "bl_app_templates_user"
+    p = tp / "Python_Nodes"
+    if not p.exists():
+        p.mkdir(parents=True, exist_ok=True)
+        print("created: %s" % p)
+
+    if str(tp) not in bpy.utils.app_template_paths(): # テンプレートパスとして認識されてるか確認
+        print("App template path not found: %s" % p)
+        return
+
+    p /= "startup.blend"
+    if not p.exists():
+        os.symlink(Path(__file__).parent / "startup.blend", p, target_is_directory=False)
+        # TODO: どうやってWindowsをサポートする？アンインストールはどうする？
+        print("created: %s" % p)
 
 # Python Operators
 # https://docs.python.org/ja/3/library/operator.html
@@ -757,6 +777,7 @@ classes = [
 
 def register():
     unregister()
+    install_app_template()
     for c in classes:
         bpy.utils.register_class(c)
 
