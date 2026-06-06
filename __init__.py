@@ -450,14 +450,13 @@ def install_app_template():
 
         print("created: %s" % (p / "__init__.py"))
 
-# Unused (フックに切り替え、hooked_executeを参照)
-class PythonNodesPreferences(bpy.types.AddonPreferences):
-    bl_idname = __package__
-    bl_label = "Add-on Preferences"
-
-    def draw(self, context):
-        layout = self.layout
-#        layout.operator("node.uninstall_python_node", icon='TRASH')
+# Unused
+#class PythonNodesPreferences(bpy.types.AddonPreferences):
+#    bl_idname = __package__
+#    bl_label = "Add-on Preferences"
+#
+#    def draw(self, context):
+#        layout = self.layout
 
 def uninstall_app_template():
     p = Path(bpy.utils.script_path_user()) / "startup" / "bl_app_templates_user" / "Python_Nodes"
@@ -468,23 +467,6 @@ def uninstall_app_template():
         except Exception as e:
             print(f"Failed to uninstall app template: {e}")
 
-
-# Unused (フックに切り替え、hooked_executeを参照)
-class MY_OT_UninstallPythonNode(bpy.types.Operator):
-    bl_idname = "node.uninstall_python_node"
-    bl_label = "Uninstall Python Nodes extension (WIP)"
-    bl_description = "Remove the Python Nodes extension"
-
-    def execute(self, context):
-        uninstall_app_template()
-        self.report({'INFO'}, "App Template Uninstalled")
-#        uninstall_pytorch()
-#        self.report({'INFO'}, "PyTorch Uninstalled")
-
-#        bpy.ops.extensions.package_uninstall(pkg_id=__package__) # repo_directory="..." ?
-#        self.report({'INFO'}, "Python Nodes Uninstalled")
-
-        return {'FINISHED'}
 
 # Python Operators
 # https://docs.python.org/ja/3/library/operator.html
@@ -867,7 +849,6 @@ classes = [
     UnaryOpNode,
     PrintNode,
     MY_OT_ExecutePythonNodeTree,
-#    MY_OT_UninstallPythonNode,
 ]
 
 def register():
@@ -889,6 +870,8 @@ def register():
         if __package__.endswith("." + self.pkg_id):
             uninstall_app_template()
             self.report({"INFO"}, "App Template Uninstalled")
+#            uninstall_pytorch()
+#            self.report({'INFO'}, "PyTorch Uninstalled")
         return orig_execute(self, context)
 
     op.execute = hooked_execute
