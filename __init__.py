@@ -327,6 +327,7 @@ def get_system_cuda_version():
 #    except: pass
     return None
 
+# XXX: untested
 def install_pytorch():
     """PyTorchのインストールを試行。成功ならTrueを返す。"""
 #    try:
@@ -372,8 +373,43 @@ def install_pytorch():
         print(f"Error installing PyTorch: {e.stderr}")
         return False
 
+# XXX: untested
+def uninstall_pytorch():
+    """PyTorchのアンインストールを試行。"""
+    target_dir = get_modules_path()
+    try:
+        # -y to bypass confirmation
+        cmd = [sys.executable, "-m", "pip", "uninstall", "--target", target_dir, "-y", "torch"]
+        # Note: pip uninstall doesn't usually support --target,
+        # but it will find it if it's in the path or we can manually remove the directory.
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        print(result.stdout)
+
+        # Manually cleanup the directory if pip didn't catch it in the target_dir
+#        torch_dir = Path(target_dir) / "torch"
+#        if torch_dir.exists():
+#            shutil.rmtree(torch_dir)
+#            print(f"Manually removed {torch_dir}")
+            
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error uninstalling PyTorch: {e.stderr}")
+        return False
+
+
 from pathlib import Path
 import os
+import shutil
+
+app_template_init_file = """import addon_utils
+
+def register():
+    addon_utils.enable("%s", default_set=True)
+
+def unregister():
+    pass
+""" % __package__
+
 def install_app_template():
     # https://docs.blender.org/manual/en/latest/advanced/app_templates.html
     # 標準では存在しないものの、作れば即時認識される模様
@@ -387,11 +423,66 @@ def install_app_template():
         print("App template path not found: %s" % p)
         return
 
-    p /= "startup.blend"
+    to_p = p / "startup.blend"
+    from_p = Path(__file__).parent / "startup.blend"
     if not p.exists():
-        os.symlink(Path(__file__).parent / "startup.blend", p, target_is_directory=False)
-        # TODO: どうやってWindowsをサポートする？アンインストールはどうする？
-        print("created: %s" % p)
+        try:
+            os.symlink(from_p, to_p, target_is_directory=False)
+        except:
+            try:
+                # Windows requires admin or specific privileges for symlinks, 
+                # but we can try to create a hard link or just copy if it fails.
+                shutil.copy(from_p, to_p)
+            except Exception as e:
+                print(f"Failed to copy startup.blend: {e}")
+                return
+
+        print("created: %s" % to_p)
+
+    ip = p / "__init__.py"
+    if not ip.exists():
+        try:
+            with open(ip, "w", encoding="utf-8") as f_out:
+                f_out.write(app_template_init_file)
+        except Exception as e:
+            print(f"Failed to create app template init: {e}")
+            return
+
+        print("created: %s" % (p / "__init__.py"))
+
+class PythonNodesPreferences(bpy.types.AddonPreferences):
+    bl_idname = __package__
+    bl_label = "Add-on Preferences"
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator("node.uninstall_python_node", icon='TRASH')
+
+def uninstall_app_template():
+    p = Path(bpy.utils.script_path_user()) / "startup" / "bl_app_templates_user" / "Python_Nodes"
+    if p.exists():
+        try:
+            shutil.rmtree(p)
+            print("uninstalled: %s" % p)
+        except Exception as e:
+            print(f"Failed to uninstall app template: {e}")
+
+# TODO: アンインストールを実装する
+class MY_OT_UninstallPythonNode(bpy.types.Operator):
+    bl_idname = "node.uninstall_python_node"
+    bl_label = "Uninstall Python Nodes extension (WIP)"
+    bl_description = "Remove the Python Nodes extension"
+
+    def execute(self, context):
+        uninstall_app_template()
+        self.report({'INFO'}, "App Template Uninstalled")
+#        uninstall_pytorch()
+#        self.report({'INFO'}, "PyTorch Uninstalled")
+
+#        bpy.ops.extensions.package_uninstall(pkg_id=__package__) # repo_directory="..." ?
+#        self.report({'INFO'}, "Python Nodes Uninstalled")
+
+        return {'FINISHED'}
 
 # Python Operators
 # https://docs.python.org/ja/3/library/operator.html
@@ -766,6 +857,7 @@ def draw_node_header(self, context):
 # Register
 # =====================================================
 classes = [
+    PythonNodesPreferences,
     PythonNodeTree,
     PythonValueSocket,
     LiteralNode,
@@ -773,6 +865,7 @@ classes = [
     UnaryOpNode,
     PrintNode,
     MY_OT_ExecutePythonNodeTree,
+    MY_OT_UninstallPythonNode,
 ]
 
 def register():
@@ -801,7 +894,6 @@ def unregister():
             bpy.utils.unregister_class(c)
         except Exception:
             pass
-    
 
 if __name__ == "__main__":
     register()

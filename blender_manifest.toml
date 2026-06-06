@@ -6,7 +6,7 @@ schema_version = "1.0.0"
 id = "python_nodes"
 version = "0.0.1"
 name = "Python Nodes"
-tagline = "This is another extension"
+tagline = "Python visual programming add-on"
 maintainer = "Toshimitsu Kimura"
 # Supported types: "add-on", "theme"
 type = "add-on"
@@ -18,7 +18,7 @@ type = "add-on"
 # https://docs.blender.org/manual/en/dev/advanced/extensions/tags.html
 tags = ["Development"]
 
-blender_version_min = "4.2.0"
+blender_version_min = "5.1.0"
 # # Optional: Blender version that the extension does not support, earlier versions are supported.
 # # This can be omitted and defined later on the extensions platform if an issue is found.
 # blender_version_max = "5.1.0"
@@ -29,10 +29,9 @@ license = [
   "SPDX:GPL-3.0-or-later",
 ]
 # Optional: required by some licenses.
-# copyright = [
-#   "2002-2024 Developer Name",
-#   "1998 Company Name",
-# ]
+copyright = [
+  "2026 Toshimitsu Kimura",
+]
 
 # Optional list of supported platforms. If omitted, the extension will be available in all operating systems.
 # platforms = ["windows-x64", "macos-arm64", "linux-x64"]
