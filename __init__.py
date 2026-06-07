@@ -246,7 +246,6 @@ class LiteralNode(PythonBaseNode):
             except:
                 return ast.Name(id=self.value, ctx=ast.Load())
         return None
-        
 
 # tree = ast.parse("_1+_2")
 # print(ast.dump(tree, indent=2))
@@ -474,6 +473,10 @@ def uninstall_app_template():
 # https://docs.python.org/3/genindex-_.html
 # https://docs.python.org/3/library/functions.html
 # https://docs.pytorch.org/docs/2.12/fx.html
+# https://docs.pytorch.org/docs/2.12/user_guide/torch_compiler/export/ir_spec.html
+# https://docs.pytorch.org/executorch/stable/ir-exir.html
+# https://github.com/pytorch/executorch/blob/main/exir/dialects/edge/edge.yaml
+# https://docs.pytorch.org/docs/2.12/user_guide/torch_compiler/torch.compiler_ir.html
 
 # TODO: Inplace演算問題（配列操作含む） -> geometry nodesはどうしてる？
 # 配列参照と配列スライスは直ぐに実装できるはず
