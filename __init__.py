@@ -329,6 +329,17 @@ class LiteralNode(PythonBaseNode):
 # str[][]
 # *
 
+# >>> print(len(torch._C._dispatch_get_all_op_names()))
+# 3720
+# >>> len(list(filter(lambda x: x.endswith("_out"), torch._C._dispatch_get_all_op_names())))
+# 326
+# >>> len(list(filter(lambda x: x.endswith(".out"), torch._C._dispatch_get_all_op_names())))
+# 755
+# >>> len(list(filter(lambda x: x.find("_.")>=0, torch._C._dispatch_get_all_op_names())))
+# 170
+# >>> len(list(filter(lambda x: x.find("!")>=0, [re.findall(r'^schema:.*$', torch._C._dispatch_dump(text), flags=re.MULTILINE)[0] for text in torch._C._dispatch_get_all_op_names()])))
+# 1563
+
 # >>> def f(x):
 # ...     return torch.add(x, 1)
 # ... 
