@@ -273,6 +273,160 @@ class LiteralNode(PythonBaseNode):
 # 別プロセスのsandboxで実行してキューに入れてper-frameでUI更新？
 # 途中の計算結果を表示するか否か→表示できると何かと便利だけど最適化とのトレードオフ
 
+# 今後の実装のためのメモ
+# ops = torch._C._dispatch_get_all_op_names()
+
+# for op in ops:
+#     if op.startswith("aten::"):
+#         print(op)
+
+# import torch
+# dir(torch.ops.aten)
+
+# print(torch._C._dispatch_dump_table("aten::add.Tensor"))
+# print(torch._C._dispatch_dump("aten::add.Tensor"))
+
+# $ python -c "print(sorted(__import__('torch').torch._C._dispatch_get_all_op_names()))"|less
+# $ python -c "print('\n'.join(sorted(__import__('torch').torch._C._dispatch_get_all_op_names())))"|less
+# aten::add.Scalar
+# aten::add.Scalar_out
+# aten::add.Tensor
+# aten::add.out
+# aten::add_.Scalar
+# aten::add_.Tensor
+# >>> print(torch._C._dispatch_dump("aten::add.Scalar"))
+# schema: aten::add.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor
+# >>> print(torch._C._dispatch_dump("aten::add.Scalar_out"))
+# schema: aten::add.Scalar_out(Tensor self, Scalar other, Scalar alpha=1, *, Tensor(a!) out) -> Tensor(a!)
+# >>> print(torch._C._dispatch_dump("aten::add.Tensor"))
+# schema: aten::add.Scalar(Tensor self, Scalar other, Scalar alpha=1) -> Tensor
+# >>> print(torch._C._dispatch_dump("aten::add.Tensor"))
+# schema: aten::add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor
+# >>> print(torch._C._dispatch_dump("aten::add.out"))
+# schema: aten::add.out(Tensor self, Tensor other, *, Scalar alpha=1, Tensor(a!) out) -> Tensor(a!)
+# >>> print(torch._C._dispatch_dump("aten::add_.Scalar"))
+# schema: aten::add_.Scalar(Tensor(a!) self, Scalar other, Scalar alpha=1) -> Tensor(a!)
+# >>> print(torch._C._dispatch_dump("aten::add_.Tensor"))
+# schema: aten::add_.Tensor(Tensor(a!) self, Tensor other, *, Scalar alpha=1) -> Tensor(a!)
+
+# alphaがあるから実質FMAだ…
+
+# $ python -c "print('\n'.join(sorted(__import__('torch')._C._dispatch_get_all_op_names())))"|grep _.Tensor|less
+# $ python -c "print('\n'.join(sorted(__import__('torch')._C._dispatch_get_all_op_names())))"|grep _.Scalar|less
+# $ python -c "print('\n'.join(sorted(__import__('torch')._C._dispatch_get_all_op_names())))"|grep _.Scalar|less
+
+#import torch
+#print('\n'.join(sorted([re.findall(r'^schema:.*$', torch._C._dispatch_dump(text), flags=re.MULTILINE)[0] for text in __import__('torch')._C._dispatch_get_all_op_names()])))
+
+# python -c "import re, torch; print('\n'.join(sorted([re.findall(r'^schema:.*$', torch._C._dispatch_dump(text), flags=re.MULTILINE)[0] for text in torch._C._dispatch_get_all_op_names()])))" | less
+
+# _ が付くものは in-place。
+# _out や .out は 出力Tensorを呼び出し側が渡す版。
+# Tensor(a!) の a! は Alias Analysis 記法で「このTensorが破壊的変更される」を意味する。
+# スカラ-スカラ命令は無い（何で）
+# Tensor, Scalar, str, int, float, Tensor[], SymInt, Any
+# Tensor?
+# str[][]
+# *
+
+# >>> def f(x):
+# ...     return torch.add(x, 1)
+# ... 
+# >>> traced=torch.fx.symbolic_trace(f)
+# >>> print(traced.graph)
+# graph():
+#     %x : [num_users=1] = placeholder[target=x]
+#     %add : [num_users=1] = call_function[target=torch.add](args = (%x, 1), kwargs = {})
+#     return add
+
+# >>> def f(x):
+# ...     x += 1
+# ...     x += x
+# ...     return x
+# ... 
+# >>> traced=torch.fx.symbolic_trace(f)
+# >>> print(traced.graph)
+# graph():
+#     %x : [num_users=1] = placeholder[target=x]
+#     %add : [num_users=1] = call_function[target=operator.add](args = (%x, 1), kwargs = {})
+#     %add_1 : [num_users=1] = call_function[target=operator.add](args = (%add, %add), kwargs = {})
+#     return add_1
+# >>> class Mod(torch.nn.Module):
+# ...     def forward(self, x):
+# ...         return f(x)
+# ... 
+# >>> mod = Mod()
+# >>> module = torch.export.export(mod, (torch.rand(5, 5),))
+# >>> print(module.graph)
+# graph():
+#     %x : [num_users=1] = placeholder[target=x]
+#     %add_ : [num_users=1] = call_function[target=torch.ops.aten.add_.Tensor](args = (%x, 1), kwargs = {})
+#     %add__1 : [num_users=1] = call_function[target=torch.ops.aten.add_.Tensor](args = (%add_, %add_), kwargs = {})
+#     return (add__1,)
+# >>> decomp1 = module.run_decompositions(decomp_table={}) # 純粋関数化
+# /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+#   return cls.__new__(cls, *args)
+# >>> print(decomp1.graph)
+# graph():
+#     %x : [num_users=1] = placeholder[target=x]
+#     %add : [num_users=1] = call_function[target=torch.ops.aten.add.Tensor](args = (%x, 1), kwargs = {})
+#     %add_1 : [num_users=1] = call_function[target=torch.ops.aten.add.Tensor](args = (%add, %add), kwargs = {})
+#     return (add_1, add_1)
+# >>> decomp2 = module.run_decompositions(decomp_table=None) # Core Aten IRに分解
+# /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+#   return cls.__new__(cls, *args)
+# >>> print(decomp2.graph)
+# graph():
+#     %x : [num_users=1] = placeholder[target=x]
+#     %add : [num_users=1] = call_function[target=torch.ops.aten.add.Tensor](args = (%x, 1), kwargs = {})
+#     %add_1 : [num_users=1] = call_function[target=torch.ops.aten.add.Tensor](args = (%add, %add), kwargs = {})
+#     return (add_1, add_1)
+
+# >>> import torch._decomp
+# >>> torch._decomp.core_aten_decompositions()
+# {}
+# >>> torch._decomp._core_aten_decompositions_post_autograd()
+# {<OpOverload(op='aten.addcdiv', overload='default')>: <function addcdiv at 0x791ae59a40e0>, ...
+
+# https://github.com/pytorch/pytorch/blob/main/torch/_decomp/decompositions.py
+# ここに分解リストがあってregister_decompositionデコレータで関数を登録
+# https://github.com/pytorch/pytorch/blob/main/torch/_decomp/__init__.py
+# register_decompositionは標準でglobal_decomposition_table["post_autograd"]に関数を入れる
+# >>> torch._decomp.global_decomposition_table.keys()
+# dict_keys(['post_autograd', 'pre_autograd', 'meta'])
+# でもtorch._decomp._core_aten_decompositions_post_autograd()のリストは固定みたい…うーん？
+
+# metaはmeta tensor向けかな。meta tensorはfake tensorよりももっと計算しないやつみたい。今は要らない。
+# >>> torch._decomp.pre_autograd_decomposition_table
+# {}
+# >>> torch._decomp.decomposition_table
+# ..., <OpOverload(op='aten.special_zeta', overload='other_scalar_out')>: <function zeta at 0x791ae5731620>}
+# これは欲しいものな気がする
+
+# torch._decomp._core_aten_decompositions_post_autograd() と torch._decomp.decomposition_table はどっちが良い？
+# >>> full = torch._decomp.decomposition_table
+# >>> core = torch._decomp._core_aten_decompositions_post_autograd()
+# >>> full_set = {str(k) for k in full.keys()}
+# >>> core_set = {str(k) for k in core.keys()}
+# >>> only_full = sorted(full_set - core_set)
+# >>> only_core = sorted(core_set - full_set)
+# >>> intersection = sorted(full_set & core_set)
+# >>> # === stats ===
+# >>> print("full:", len(full_set))
+# full: 1135
+# >>> print("core:", len(core_set))
+# core: 445
+# >>> print("intersection:", len(intersection))
+# intersection: 445
+# >>> print("only in full (non-core ops):", len(only_full))
+# only in full (non-core ops): 690
+# >>> # === sample: only in full ===
+# >>> print(only_full[:10])
+# ['aten.__iand__.Scalar', 'aten.__iand__.Tensor', 'aten.__ilshift__.Scalar', 'aten.__ilshift__.Tensor', 'aten.__ior__.Scalar', 'aten.__ior__.Tensor', 'aten.__irshift__.Scalar', 'aten.__irshift__.Tensor', 'aten.__ixor__.Scalar', 'aten.__ixor__.Tensor']
+
+# https://docs.pytorch.org/docs/2.12/user_guide/torch_compiler/export.html
+# https://docs.pytorch.org/docs/main/user_guide/torch_compiler/torch.compiler_ir.html#core-aten-ir
+# https://github.com/pytorch/pytorch/blob/main/torch/export/decomp_utils.py
 
 import sys
 # import os
